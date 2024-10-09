@@ -1,71 +1,15 @@
 from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
+from sklearn.metrics import multilabel_confusion_matrix
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler, MultiLabelBinarizer
+from utils import artist_split, mlb_izer
 
-#EDITING DATASET SO THAT WE HANDLE GENRE AS A MULTIPLE LABEL BINARIZER
+df_grouped = mlb_izer("data/localify_music_genre.tsv")
 
-df = pd.read_csv('data/localify_music_genre.tsv', sep='\t')
-
-#store the original index so we can keep order
-df['original_index'] = df.index
-
-# Groups multiple entries with the same song name and artist name into one entry with multiple genres
-df_grouped = df.groupby(['song_name', 'artist_name']).agg({
-    'acousticness': 'first',
-    'danceability': 'first',
-    'energy': 'first',
-    'instrumentalness': 'first',
-    'liveness': 'first',
-    'loudness': 'first',
-    'speechiness': 'first',
-    'tempo': 'first',
-    'valence': 'first',
-    'genre_name': lambda x: list(x.unique()),
-    'original_index': 'first'
-}).reset_index()
-
-# Maintains order by sorting newly grouped dataset by the original index
-df_grouped = df_grouped.sort_values('original_index').reset_index(drop=True)
-
-# Get rid of the original index 
-df_grouped = df_grouped.drop(columns=['original_index'])
-
-
-
-#THE ARTIST FILTER
-unique_artists = df_grouped['artist_name'].unique()
-
-# Split the artists into training (80%) and test (20%) sets
-artists_train, artists_test = train_test_split(unique_artists, test_size=0.22, random_state=42)
-
-# Filter the original grouped DataFrame by artists
-train_data = df_grouped[df_grouped['artist_name'].isin(artists_train)].reset_index(drop=True)
-test_data = df_grouped[df_grouped['artist_name'].isin(artists_test)].reset_index(drop=True)
-
-# Prepare features X and labels y for training and testing sets
-X_train = train_data[['acousticness', 'danceability', 'energy', 'instrumentalness',
-                      'liveness', 'loudness', 'speechiness', 'tempo', 'valence']]
-X_test = test_data[['acousticness', 'danceability', 'energy', 'instrumentalness',
-                    'liveness', 'loudness', 'speechiness', 'tempo', 'valence']]
-
-# Print the number of artists in each split
-print(f"Number of artists in training set: {len(artists_train)}")
-print(f"Number of artists in test set: {len(artists_test)}")
-
-# Print the number of samples in each split
-print(f"Number of songs in training data: {train_data.shape[0]}")
-print(f"Number of songs in test data: {test_data.shape[0]}")
-
-print(f"Training Data %: {train_data.shape[0]/(train_data.shape[0]+test_data.shape[0])}")
-
-
-# Prepare labels using MultiLabelBinarizer
-mlb = MultiLabelBinarizer()
-y_train = mlb.fit_transform(train_data['genre_name'])
-y_test = mlb.transform(test_data['genre_name'])  # Use transform here to ensure consistency
+X_train, X_test, y_train, y_test, mlb = artist_split(df_grouped)
 
 # Scale the features
 scaler = StandardScaler()
@@ -110,7 +54,7 @@ history = model.fit(
 )
 
 test_loss, test_binary_accuracy = model.evaluate(X_test, y_test, verbose=1)
-print(f"Test Binary Accuracy: {test_loss:.4f}")
+print(f"Test ßLoss: {test_loss:.4f}")
 print(f"Test Binary Accuracy: {test_binary_accuracy:.4f}")
 
 # Plot accuracy
@@ -130,3 +74,26 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Validation'], loc='upper left')
 plt.show()
+
+# Predict probabilities on the test set
+y_pred_prob = model.predict(X_test)
+
+# Binarize the predictions with a threshold of 0.5
+y_pred = (y_pred_prob >= 0.5).astype(int)
+
+# Generate confusion matrices for each genre
+confusion_matrices = multilabel_confusion_matrix(y_test, y_pred)
+
+# Plot the confusion matrix for each genre
+for i, genre in enumerate(mlb.classes_):
+    plt.figure(figsize=(5, 5))
+    plt.imshow(confusion_matrices[i], interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title(f'Confusion Matrix for Genre: {genre}')
+    plt.colorbar()
+    tick_marks = np.arange(2)
+    plt.xticks(tick_marks, ['Not Present', 'Present'], rotation=45)
+    plt.yticks(tick_marks, ['Not Present', 'Present'])
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.show()
