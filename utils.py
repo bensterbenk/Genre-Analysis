@@ -62,3 +62,37 @@ def artist_split(df_grouped):
     y_train = mlb.fit_transform(train_data['genre_name'])
     y_test = mlb.transform(test_data['genre_name'])  # Use transform here to ensure consistency
     return X_train, X_test, y_train, y_test, mlb
+
+def class_weights(y_train):
+    total_samples = y_train.shape[0]
+
+    # Compute the number of positive samples for each class
+    positive_counts = np.sum(y_train, axis=0)
+
+    # Compute the number of negative samples for each class
+    negative_counts = total_samples - positive_counts
+
+    # Compute weights for each class
+    class_weights = negative_counts / positive_counts
+
+    # Normalize weights to keep them in a reasonable range
+    class_weights = class_weights / np.max(class_weights)
+
+    print("Class Weights:", class_weights)
+
+    return class_weights
+
+def custom_loss(y_true, y_pred):
+    # Compute the standard binary cross-entropy loss
+    bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+    
+    # Sum the predicted probabilities for each sample
+    sum_preds = tf.reduce_sum(y_pred, axis=1)
+    
+    # Compute the penalty: if sum_preds < 1, penalize the loss
+    penalty = tf.square(tf.maximum(1.0 - sum_preds, 0))
+    
+    # Add the penalty to the binary cross-entropy loss
+    total_loss = bce + penalty
+    
+    return total_loss
