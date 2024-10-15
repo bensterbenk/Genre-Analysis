@@ -64,20 +64,3 @@ print(f'Dataset reduction percentage: {reduction_percentage:.2f}%')
 
 
 
-def gaussian_noise(df):
-    numerical_features = ['acousticness', 'danceability', 'energy', 'instrumentalness',
-                      'liveness', 'loudness', 'speechiness', 'tempo', 'valence']
-
-    # Define the noise level (e.g., 1% of the standard deviation)
-    noise_level = 0.01
-
-    # Create augmented data
-    augmented_data = df.copy()
-    for feature in numerical_features:
-        std = df[feature].std()
-        noise = np.random.normal(0, noise_level * std, size=df.shape[0])
-        augmented_data[feature] += noise
-
-    # Combine original and augmented data
-    augmented_dataset = pd.concat([df, augmented_data], ignore_index=True)
-    return augmented_dataset
